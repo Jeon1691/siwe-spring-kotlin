@@ -1,0 +1,12 @@
+server:
+  port: 8080
+
+siwe:
+  allowed-domains:
+    - "localhost:3000"
+    - "localhost:5173"
+  allowed-chain-ids:
+    - 1
+    - 11155111
+  nonce-ttl-minutes: 10
+  clock-skew-seconds: 60
