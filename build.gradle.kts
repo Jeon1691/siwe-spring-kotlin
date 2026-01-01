@@ -36,7 +36,7 @@ dependencies {
     
     // Force upgrade commons-lang3 to fix CVE-2025-48924 if possible, though 3.17.0 is quite new.
     // Checking if a newer version exists or just explicitly stating it to override transitive deps.
-    implementation("org.apache.commons:commons-lang3:3.17.0")
+    implementation("org.apache.commons:commons-lang3:3.18.0")
 
     // Swagger / OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.3")
