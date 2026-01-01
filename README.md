@@ -14,19 +14,27 @@ OAuth2 표준에 가까운 JWT 기반 인증 및 Refresh Token 기능을 제공�
 ## 요구 사항 (Requirements)
 - Java 21+
 - Gradle (Wrapper 포함됨)
+- Docker & Docker Compose (선택 사항)
 
 ## 실행 방법 (Run)
 
-### 1. 프로젝트 실행
+### 1. 로컬 실행 (Gradle)
 터미널에서 아래 명령어를 실행하거나, IntelliJ IDEA에서 `SiweSpringKotlinApplication`을 실행하세요.
 
 ```bash
 ./gradlew bootRun
 ```
 
+### 2. Docker 실행
+Docker가 설치되어 있다면 아래 명령어로 컨테이너를 실행할 수 있습니다.
+
+```bash
+docker-compose up --build -d
+```
+
 서버는 기본적으로 `http://localhost:8080`에서 실행됩니다.
 
-### 2. 테스트 실행
+### 3. 테스트 실행
 단위 테스트 및 통합 테스트를 실행하려면 아래 명령어를 사용하세요.
 
 ```bash
