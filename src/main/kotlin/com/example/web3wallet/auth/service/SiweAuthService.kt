@@ -1,41 +1,56 @@
 package com.example.web3wallet.auth.service
 
 import com.example.web3wallet.auth.dto.NonceResponse
+import com.example.web3wallet.auth.dto.RefreshTokenRequest
 import com.example.web3wallet.auth.dto.SiweVerifyRequest
-import com.example.web3wallet.auth.dto.VerifyResponse
+import com.example.web3wallet.auth.dto.TokenResponse
+import com.example.web3wallet.auth.jwt.TokenProvider
 import com.example.web3wallet.auth.nonce.NonceService
+import com.example.web3wallet.auth.repository.RefreshTokenRepository
 import com.example.web3wallet.auth.siwe.SiweParser
 import com.example.web3wallet.auth.siwe.SiweVerifier
+import com.example.web3wallet.config.JwtProperties
 import com.example.web3wallet.config.SiweProperties
 import org.springframework.stereotype.Service
-import java.security.SecureRandom
 import java.time.Instant
-import java.util.Base64
 
 @Service
 class SiweAuthService(
     private val nonceService: NonceService,
-    private val props: SiweProperties
+    private val tokenProvider: TokenProvider,
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val siweProps: SiweProperties,
+    private val jwtProps: JwtProperties
 ) {
-    private val rng = SecureRandom()
 
     fun issueNonce(): NonceResponse =
         NonceResponse(nonceService.issueNonce())
 
-    fun verify(req: SiweVerifyRequest): VerifyResponse {
+    fun verify(req: SiweVerifyRequest): TokenResponse {
         val siwe = SiweParser.parse(req.message)
 
         // Basic field checks
-        if (props.allowedDomains.isNotEmpty() && siwe.domain !in props.allowedDomains) {
-            throw IllegalArgumentException("Domain not allowed")
+        if (siweProps.allowedDomains.isNotEmpty()) {
+            val isAllowed = siweProps.allowedDomains.any { allowed ->
+                if (allowed.startsWith("*.")) {
+                    val suffix = allowed.removePrefix("*.")
+                    siwe.domain.endsWith(suffix) || siwe.domain == suffix
+                } else {
+                    siwe.domain == allowed
+                }
+            }
+            if (!isAllowed) {
+                throw IllegalArgumentException("Domain not allowed: ${siwe.domain}")
+            }
         }
-        if (props.allowedChainIds.isNotEmpty() && siwe.chainId !in props.allowedChainIds) {
+
+        if (siweProps.allowedChainIds.isNotEmpty() && siwe.chainId !in siweProps.allowedChainIds) {
             throw IllegalArgumentException("Chain ID not allowed")
         }
 
         // Time window checks (with small skew)
         val now = Instant.now()
-        val skew = props.clockSkewSeconds
+        val skew = siweProps.clockSkewSeconds
         val latestIssuedAt = now.plusSeconds(skew)
         if (siwe.issuedAt.isAfter(latestIssuedAt)) {
             throw IllegalArgumentException("Issued At is in the future")
@@ -58,10 +73,41 @@ class SiweAuthService(
             throw IllegalArgumentException("Signature does not match address")
         }
 
-        // Minimal access token (replace with JWT/session in real deployment)
-        val tokenBytes = ByteArray(32).also { rng.nextBytes(it) }
-        val token = Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes)
+        // Issue Tokens
+        return issueTokens(recovered)
+    }
 
-        return VerifyResponse(address = recovered, accessToken = token)
+    fun refresh(req: RefreshTokenRequest): TokenResponse {
+        val refreshToken = req.refreshToken
+
+        // 1. Validate Refresh Token format & signature
+        if (!tokenProvider.validateToken(refreshToken)) {
+            throw IllegalArgumentException("Invalid refresh token")
+        }
+
+        // 2. Check if it exists in store (Rotation or Revocation check)
+        val address = refreshTokenRepository.findByToken(refreshToken)
+            ?: throw IllegalArgumentException("Refresh token not found or revoked")
+
+        // 3. Rotate Refresh Token (Optional but recommended)
+        // Delete old token
+        refreshTokenRepository.delete(refreshToken)
+
+        // Issue new tokens
+        return issueTokens(address)
+    }
+
+    private fun issueTokens(address: String): TokenResponse {
+        val accessToken = tokenProvider.createAccessToken(address)
+        val refreshToken = tokenProvider.createRefreshToken(address)
+
+        // Save Refresh Token
+        refreshTokenRepository.save(refreshToken, address)
+
+        return TokenResponse(
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            expiresIn = jwtProps.accessTokenValiditySeconds
+        )
     }
 }

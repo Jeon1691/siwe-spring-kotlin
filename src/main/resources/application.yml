@@ -3,10 +3,16 @@ server:
 
 siwe:
   allowed-domains:
-    - "localhost:3000"
-    - "localhost:5173"
+    - "localhost"
+    - "localhost:8080"
+    - "*.develicit.dev"
   allowed-chain-ids:
     - 1
     - 11155111
   nonce-ttl-minutes: 10
   clock-skew-seconds: 60
+
+jwt:
+  secret: "v3ryS3cr3tK3yMustB3L0ng3rTh4n256B1tsF0rHS512S1gn1ng!!" # 32자 이상 권장
+  access-token-validity-seconds: 3600       # 1시간
+  refresh-token-validity-seconds: 604800    # 7일

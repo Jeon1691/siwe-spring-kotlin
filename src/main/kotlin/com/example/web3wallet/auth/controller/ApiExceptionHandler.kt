@@ -16,6 +16,9 @@ class ApiExceptionHandler {
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse(e.message ?: "Bad Request"))
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidation(e: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =
-        ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse("Validation failed"))
+    fun handleValidation(e: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
+        // Extract field errors for more detailed feedback
+        val message = e.bindingResult.fieldErrors.joinToString(", ") { "${it.field}: ${it.defaultMessage}" }
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse("Validation failed: $message"))
+    }
 }

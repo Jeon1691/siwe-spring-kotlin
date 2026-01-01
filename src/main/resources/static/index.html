@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIWE Test</title>
+    <!-- Ethers.js v6 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.5/ethers.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --btn-bg: #238636;
+            --btn-hover: #2ea043;
+            --box-bg: #161b22;
+            --link-color: #58a6ff;
+            --code-bg: #0d1117;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            font-size: 24px;
+        }
+
+        .btn-group {
+            margin-bottom: 1.5rem;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: var(--btn-bg);
+            color: #ffffff;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+            border-radius: 6px;
+            padding: 5px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--btn-hover);
+        }
+
+        button:disabled {
+            background-color: #21262d;
+            color: #8b949e;
+            cursor: not-allowed;
+            border-color: var(--border-color);
+        }
+
+        #status {
+            background-color: var(--box-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            overflow-x: auto;
+            line-height: 1.5;
+        }
+
+        .token-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            background-color: rgba(56, 139, 253, 0.1);
+            border: 1px solid rgba(56, 139, 253, 0.4);
+            border-radius: 6px;
+            color: var(--text-color);
+        }
+
+        .token-label {
+            color: var(--link-color);
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .token-value {
+            display: block;
+            margin-bottom: 12px;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sign-In with Ethereum (SIWE)</h1>
+
+        <div class="btn-group">
+            <button id="connectBtn">Connect Wallet & Sign In</button>
+            <button id="refreshBtn" style="display:none;">Refresh Token</button>
+        </div>
+
+        <div id="status">Waiting for action...</div>
+    </div>
+
+    <script>
+        const domain = window.location.host;
+        const origin = window.location.origin;
+
+        let provider;
+        let currentRefreshToken = null;
+
+        function log(msg, isHtml = false) {
+            const statusDiv = document.getElementById('status');
+            if (statusDiv.innerText === "Waiting for action...") {
+                statusDiv.innerHTML = "";
+            }
+
+            if (isHtml) {
+                statusDiv.innerHTML += msg + "\n";
+            } else {
+                statusDiv.innerText += msg + "\n";
+            }
+            // Auto scroll to bottom
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function showTokens(data) {
+            const html = `
+<div class="token-box">
+    <span class="token-label">Access Token</span>
+    <span class="token-value">${data.access_token}</span>
+
+    <span class="token-label">Refresh Token</span>
+    <span class="token-value">${data.refresh_token}</span>
+
+    <span class="token-label">Expires In</span>
+    <span class="token-value">${data.expires_in} seconds</span>
+</div>`;
+            log(html, true);
+            currentRefreshToken = data.refresh_token;
+            document.getElementById('refreshBtn').style.display = 'inline-block';
+        }
+
+        function createSiweMessage(address, chainId, nonce) {
+            const issuedAt = new Date().toISOString();
+            return `${domain} wants you to sign in with your Ethereum account:
+${address}
+
+Sign in with Ethereum to the app.
+
+URI: ${origin}
+Version: 1
+Chain ID: ${chainId}
+Nonce: ${nonce}
+Issued At: ${issuedAt}`;
+        }
+
+        document.getElementById('connectBtn').addEventListener('click', async () => {
+            try {
+                if (!window.ethereum) {
+                    throw new Error("MetaMask is not installed!");
+                }
+
+                provider = new ethers.BrowserProvider(window.ethereum);
+
+                // 1. Connect Wallet
+                const signer = await provider.getSigner();
+                const address = await signer.getAddress();
+                const network = await provider.getNetwork();
+                const chainId = network.chainId;
+
+                log(`> Connected: ${address} (Chain ID: ${chainId})`);
+
+                // 2. Get Nonce
+                const nonceRes = await fetch(`${origin}/api/auth/siwe/nonce`);
+                if (!nonceRes.ok) throw new Error("Failed to fetch nonce");
+                const { nonce } = await nonceRes.json();
+                log(`> Nonce received: ${nonce}`);
+
+                // 3. Create SIWE Message
+                const message = createSiweMessage(address, chainId, nonce);
+                log(`\n--- Signing Message ---\n${message}\n-----------------------`);
+
+                // 4. Sign Message
+                const signature = await signer.signMessage(message);
+                log(`> Signature: ${signature.substring(0, 20)}...`);
+
+                // 5. Verify
+                const verifyRes = await fetch(`${origin}/api/auth/siwe/verify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message, signature })
+                });
+
+                const result = await verifyRes.json();
+                if (verifyRes.ok) {
+                    log(`\n✅ Login Successful!`);
+                    showTokens(result);
+                } else {
+                    log(`\n❌ Login Failed: ${JSON.stringify(result, null, 2)}`);
+                }
+
+            } catch (err) {
+                log(`\n❌ Error: ${err.message}`);
+                console.error(err);
+            }
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', async () => {
+            if (!currentRefreshToken) return;
+
+            try {
+                log(`\n--- Refreshing Token ---`);
+                const res = await fetch(`${origin}/api/auth/siwe/refresh`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refresh_token: currentRefreshToken })
+                });
+
+                const result = await res.json();
+                if (res.ok) {
+                    log(`✅ Refresh Successful!`);
+                    showTokens(result);
+                } else {
+                    log(`❌ Refresh Failed: ${JSON.stringify(result, null, 2)}`);
+                }
+            } catch (err) {
+                log(`❌ Error: ${err.message}`);
+            }
+        });
+    </script>
+</body>
+</html>
