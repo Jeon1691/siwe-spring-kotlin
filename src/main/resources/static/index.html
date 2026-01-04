@@ -31,6 +31,7 @@
         .container {
             max-width: 800px;
             width: 100%;
+            position: relative;
         }
 
         h1 {
@@ -38,12 +39,16 @@
             padding-bottom: 0.5rem;
             margin-bottom: 1.5rem;
             font-size: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .btn-group {
             margin-bottom: 1.5rem;
             display: flex;
             gap: 10px;
+            align-items: center;
         }
 
         button {
@@ -69,18 +74,102 @@
             border-color: var(--border-color);
         }
 
-        #status {
+        select {
             background-color: var(--box-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        /* Log Area Styling */
+        #status {
+            background-color: #010409;
             border: 1px solid var(--border-color);
             border-radius: 6px;
             padding: 1rem;
-            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
             font-size: 12px;
+            overflow-y: auto;
+            margin-bottom: 1.5rem;
+            height: 400px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Custom Scrollbar */
+        #status::-webkit-scrollbar {
+            width: 8px;
+        }
+        #status::-webkit-scrollbar-track {
+            background: #010409;
+        }
+        #status::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        #status::-webkit-scrollbar-thumb:hover {
+            background: #8b949e;
+        }
+
+        .log-entry {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            background-color: var(--box-bg);
+            overflow: hidden;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-header {
+            padding: 6px 12px;
+            background-color: #21262d;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #8b949e;
+        }
+
+        .log-content {
+            padding: 10px 12px;
+            color: #e6edf3;
+            font-size: 11px;
+            overflow-x: auto;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+            font-size: 10px;
+            margin-right: 8px;
+            text-transform: uppercase;
+        }
+
+        .type-INFO { background-color: #0366d6; }
+        .type-SUCCESS { background-color: #238636; }
+        .type-ERROR { background-color: #d73a49; }
+        .type-WARN { background-color: #d29922; }
+
+        pre {
+            margin: 0;
             white-space: pre-wrap;
             word-break: break-all;
-            overflow-x: auto;
-            line-height: 1.5;
         }
+
+        .json-key { color: #79c0ff; }
+        .json-string { color: #a5d6ff; }
+        .json-number { color: #d2a8ff; }
+        .json-boolean { color: #ff7b72; }
+        .json-null { color: #ff7b72; }
 
         .token-box {
             margin-top: 1rem;
@@ -103,18 +192,40 @@
             margin-bottom: 12px;
             word-break: break-all;
         }
+
+        .nav-link {
+            font-size: 14px;
+            color: var(--link-color);
+            text-decoration: none;
+            font-weight: bold;
+            display: none; /* Hidden by default */
+        }
+        .nav-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Sign-In with Ethereum (SIWE)</h1>
+        <h1>
+            Sign-In with Ethereum (SIWE)
+            <a href="address-book.html" id="navLink" class="nav-link">Go to Address Book →</a>
+        </h1>
 
         <div class="btn-group">
+            <select id="chainSelect">
+                <option value="11155111" selected>Sepolia Testnet (11155111)</option>
+                <option value="1">Ethereum Mainnet (1)</option>
+            </select>
             <button id="connectBtn">Connect Wallet & Sign In</button>
             <button id="refreshBtn" style="display:none;">Refresh Token</button>
         </div>
 
-        <div id="status">Waiting for action...</div>
+        <div id="status">
+            <div style="color: #8b949e; text-align: center; padding-top: 180px;">
+                Ready. Logs will appear here.
+            </div>
+        </div>
     </div>
 
     <script>
@@ -122,38 +233,81 @@
         const origin = window.location.origin;
 
         let provider;
+        let currentAccessToken = null;
         let currentRefreshToken = null;
 
-        function log(msg, isHtml = false) {
+        // --- Logging Functions ---
+
+        function syntaxHighlight(json) {
+            if (typeof json != 'string') {
+                json = JSON.stringify(json, undefined, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function clearInitialStatus() {
             const statusDiv = document.getElementById('status');
-            if (statusDiv.innerText === "Waiting for action...") {
+            if (statusDiv.innerText.includes("Ready. Logs will appear here.")) {
                 statusDiv.innerHTML = "";
             }
+        }
 
-            if (isHtml) {
-                statusDiv.innerHTML += msg + "\n";
-            } else {
-                statusDiv.innerText += msg + "\n";
+        function log(type, title, message = null) {
+            clearInitialStatus();
+            const statusDiv = document.getElementById('status');
+            const time = new Date().toLocaleTimeString();
+
+            let bodyHtml = "";
+            if (message) {
+                if (typeof message === 'object') {
+                    bodyHtml = `<div class="log-content"><pre>${syntaxHighlight(message)}</pre></div>`;
+                } else {
+                    bodyHtml = `<div class="log-content">${message}</div>`;
+                }
             }
-            // Auto scroll to bottom
+
+            const html = `
+                <div class="log-entry">
+                    <div class="log-header">
+                        <div>
+                            <span class="badge type-${type}">${type}</span>
+                            <span>${title}</span>
+                        </div>
+                        <span>${time}</span>
+                    </div>
+                    ${bodyHtml}
+                </div>
+            `;
+            statusDiv.innerHTML += html;
             statusDiv.scrollTop = statusDiv.scrollHeight;
         }
 
         function showTokens(data) {
-            const html = `
-<div class="token-box">
-    <span class="token-label">Access Token</span>
-    <span class="token-value">${data.access_token}</span>
+            log("SUCCESS", "Login Successful", data);
 
-    <span class="token-label">Refresh Token</span>
-    <span class="token-value">${data.refresh_token}</span>
-
-    <span class="token-label">Expires In</span>
-    <span class="token-value">${data.expires_in} seconds</span>
-</div>`;
-            log(html, true);
+            currentAccessToken = data.access_token;
             currentRefreshToken = data.refresh_token;
+
+            // Store token in localStorage for other pages
+            localStorage.setItem('access_token', currentAccessToken);
+
             document.getElementById('refreshBtn').style.display = 'inline-block';
+            document.getElementById('navLink').style.display = 'inline-block';
         }
 
         function createSiweMessage(address, chainId, nonce) {
@@ -170,6 +324,24 @@ Nonce: ${nonce}
 Issued At: ${issuedAt}`;
         }
 
+        async function switchChain(chainId) {
+            const hexChainId = "0x" + parseInt(chainId).toString(16);
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: hexChainId }],
+                });
+                return true;
+            } catch (switchError) {
+                if (switchError.code === 4902) {
+                    log("ERROR", "Chain Switch Failed", "Chain not found in MetaMask. Please add it manually.");
+                } else {
+                    log("ERROR", "Chain Switch Failed", switchError.message);
+                }
+                return false;
+            }
+        }
+
         document.getElementById('connectBtn').addEventListener('click', async () => {
             try {
                 if (!window.ethereum) {
@@ -181,24 +353,38 @@ Issued At: ${issuedAt}`;
                 // 1. Connect Wallet
                 const signer = await provider.getSigner();
                 const address = await signer.getAddress();
-                const network = await provider.getNetwork();
-                const chainId = network.chainId;
 
-                log(`> Connected: ${address} (Chain ID: ${chainId})`);
+                // Check and Switch Chain
+                const targetChainId = document.getElementById('chainSelect').value;
+                const network = await provider.getNetwork();
+
+                if (network.chainId.toString() !== targetChainId) {
+                    log("INFO", "Switching Chain", `Target Chain ID: ${targetChainId}`);
+                    const switched = await switchChain(targetChainId);
+                    if (!switched) return;
+
+                    // Re-initialize provider/signer after chain switch
+                    provider = new ethers.BrowserProvider(window.ethereum);
+                }
+
+                const currentNetwork = await provider.getNetwork();
+                const chainId = currentNetwork.chainId;
+                log("INFO", "Wallet Connected", `Address: ${address} (Chain ID: ${chainId})`);
 
                 // 2. Get Nonce
                 const nonceRes = await fetch(`${origin}/api/auth/siwe/nonce`);
                 if (!nonceRes.ok) throw new Error("Failed to fetch nonce");
                 const { nonce } = await nonceRes.json();
-                log(`> Nonce received: ${nonce}`);
+                log("INFO", "Nonce Received", nonce);
 
                 // 3. Create SIWE Message
                 const message = createSiweMessage(address, chainId, nonce);
-                log(`\n--- Signing Message ---\n${message}\n-----------------------`);
+                log("INFO", "Signing Message", message);
 
                 // 4. Sign Message
-                const signature = await signer.signMessage(message);
-                log(`> Signature: ${signature.substring(0, 20)}...`);
+                const currentSigner = await provider.getSigner();
+                const signature = await currentSigner.signMessage(message);
+                log("INFO", "Signature Created", signature.substring(0, 50) + "...");
 
                 // 5. Verify
                 const verifyRes = await fetch(`${origin}/api/auth/siwe/verify`, {
@@ -209,14 +395,13 @@ Issued At: ${issuedAt}`;
 
                 const result = await verifyRes.json();
                 if (verifyRes.ok) {
-                    log(`\n✅ Login Successful!`);
                     showTokens(result);
                 } else {
-                    log(`\n❌ Login Failed: ${JSON.stringify(result, null, 2)}`);
+                    log("ERROR", "Login Failed", result);
                 }
 
             } catch (err) {
-                log(`\n❌ Error: ${err.message}`);
+                log("ERROR", "Exception Occurred", err.message);
                 console.error(err);
             }
         });
@@ -225,7 +410,7 @@ Issued At: ${issuedAt}`;
             if (!currentRefreshToken) return;
 
             try {
-                log(`\n--- Refreshing Token ---`);
+                log("INFO", "Refreshing Token", "Requesting new access token...");
                 const res = await fetch(`${origin}/api/auth/siwe/refresh`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -234,13 +419,12 @@ Issued At: ${issuedAt}`;
 
                 const result = await res.json();
                 if (res.ok) {
-                    log(`✅ Refresh Successful!`);
                     showTokens(result);
                 } else {
-                    log(`❌ Refresh Failed: ${JSON.stringify(result, null, 2)}`);
+                    log("ERROR", "Refresh Failed", result);
                 }
             } catch (err) {
-                log(`❌ Error: ${err.message}`);
+                log("ERROR", "Exception Occurred", err.message);
             }
         });
     </script>

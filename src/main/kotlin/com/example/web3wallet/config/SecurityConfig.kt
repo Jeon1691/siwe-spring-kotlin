@@ -1,17 +1,21 @@
 package com.example.web3wallet.config
 
+import com.example.web3wallet.auth.jwt.JwtFilter
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
 import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
-class SecurityConfig {
+class SecurityConfig(
+    private val jwtFilter: JwtFilter
+) {
 
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
@@ -20,7 +24,7 @@ class SecurityConfig {
             .cors(Customizer.withDefaults())
             .authorizeHttpRequests {
                 // Static Resources (index.html for testing)
-                it.requestMatchers("/", "/index.html", "/static/**").permitAll()
+                it.requestMatchers("/", "/index.html", "/address-book.html", "/static/**").permitAll()
 
                 // SIWE Endpoints
                 it.requestMatchers(HttpMethod.GET, "/api/auth/siwe/nonce").permitAll()
@@ -38,6 +42,7 @@ class SecurityConfig {
 
                 it.anyRequest().authenticated()
             }
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter::class.java)
 
         return http.build()
     }
