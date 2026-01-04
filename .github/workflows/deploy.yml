@@ -6,42 +6,85 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   build-and-deploy:
-    runs-on: self-hosted
-    
+    runs-on: self-hosted # 직접 구축하신 Debian 13 Runner VM
+    permissions:
+      contents: read
+      packages: write
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v6
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: 'gradle'
+      - name: Lowercase the repo name
+        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
 
-    - name: Build with Gradle
-      run: ./gradlew build -x test
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-    - name: Run Tests
-      run: ./gradlew test
+      - name: Build with Gradle
+        run: ./gradlew build -x test
 
-    - name: Build Docker Image
-      run: docker build -t siwe-spring-kotlin:latest .
+      - name: Run Tests
+        run: ./gradlew test
 
-    - name: Stop and Remove Existing Container
-      run: |
-        docker stop siwe-spring-kotlin || true
-        docker rm siwe-spring-kotlin || true
+      # 1. GitHub 컨테이너 레지스트리 로그인 (이미지 업로드를 위함)
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Run New Container
-      run: |
-        docker run -d \
-          --name siwe-spring-kotlin \
-          -p 8080:8080 \
-          --restart unless-stopped \
-          siwe-spring-kotlin:latest
+      # 2. Docker 이미지 빌드 및 푸시 (GHCR로 전송)
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      # 3. 배포 대상 VM에 SSH로 접속하여 배포 명령 수행
+      - name: Deploy to Target VM
+        uses: appleboy/ssh-action@v1.0.3
+        if: github.event_name == 'push' # 푸시 이벤트일 때만 실제 배포 수행
+        with:
+          host: ${{ secrets.LXC_HOST }}
+          username: ${{ secrets.LXC_USERNAME }}
+          key: ${{ secrets.LXC_SSH_KEY }}
+          script: |
+            # GHCR 로그인
+            echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # 기존 컨테이너 중지 및 제거
+            echo "Cleaning up old container..."
+            docker stop siwe-spring-kotlin || true
+            docker rm siwe-spring-kotlin || true
+            
+            # 최신 이미지 Pull
+            echo "Pulling latest image..."
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            
+            # 새 컨테이너 실행
+            echo "Starting new container..."
+            docker run -d \
+              --name siwe-spring-kotlin \
+              -p 8080:8080 \
+              --restart unless-stopped \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            
+            # 미사용 이미지 정리
+            docker image prune -f
+            echo "Deployment successful to wallet.develicit.dev"
