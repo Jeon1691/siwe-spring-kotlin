@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Address Book - SIWE</title>
+    <style>
+        :root {
+            --bg-color: #0d1117;
+            --text-color: #c9d1d9;
+            --border-color: #30363d;
+            --btn-bg: #238636;
+            --btn-hover: #2ea043;
+            --box-bg: #161b22;
+            --link-color: #58a6ff;
+            --code-bg: #0d1117;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
+            font-size: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .back-link {
+            font-size: 14px;
+            color: var(--link-color);
+            text-decoration: none;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Log Area Styling */
+        #status {
+            background-color: #010409;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            font-family: "JetBrains Mono", Consolas, "Courier New", monospace;
+            font-size: 12px;
+            overflow-y: auto;
+            margin-bottom: 1.5rem;
+            height: 400px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Custom Scrollbar */
+        #status::-webkit-scrollbar {
+            width: 8px;
+        }
+        #status::-webkit-scrollbar-track {
+            background: #010409;
+        }
+        #status::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 4px;
+        }
+        #status::-webkit-scrollbar-thumb:hover {
+            background: #8b949e;
+        }
+
+        .log-entry {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            background-color: var(--box-bg);
+            overflow: hidden;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-header {
+            padding: 6px 12px;
+            background-color: #21262d;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: #8b949e;
+        }
+
+        .log-content {
+            padding: 10px 12px;
+            color: #e6edf3;
+            font-size: 11px;
+            overflow-x: auto;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+            font-size: 10px;
+            margin-right: 8px;
+            text-transform: uppercase;
+        }
+
+        .method-GET { background-color: #0366d6; }
+        .method-POST { background-color: #238636; }
+        .method-PUT { background-color: #d29922; }
+        .method-PATCH { background-color: #db6d28; }
+        .method-DELETE { background-color: #d73a49; }
+
+        .status-success { background-color: #238636; }
+        .status-error { background-color: #d73a49; }
+
+        .url-text {
+            color: #a5d6ff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        }
+
+        pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .json-key { color: #79c0ff; }
+        .json-string { color: #a5d6ff; }
+        .json-number { color: #d2a8ff; }
+        .json-boolean { color: #ff7b72; }
+        .json-null { color: #ff7b72; }
+
+        /* Form Styling */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            background-color: var(--box-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .form-check input {
+            width: auto;
+        }
+
+        button {
+            background-color: var(--btn-bg);
+            color: #ffffff;
+            border: 1px solid rgba(240, 246, 252, 0.1);
+            border-radius: 6px;
+            padding: 5px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--btn-hover);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: var(--link-color);
+        }
+
+        .action-btn {
+            background-color: #d73a49;
+            padding: 2px 8px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+        .action-btn:hover {
+            background-color: #b92534;
+        }
+
+        .edit-btn {
+            background-color: #0366d6;
+        }
+        .edit-btn:hover {
+            background-color: #0255b3;
+        }
+
+        .fav-btn {
+            background-color: #d29922;
+            color: #fff;
+        }
+        .fav-btn:hover {
+            background-color: #ac7b1b;
+        }
+
+        .fav-icon {
+            color: gold;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>
+            Address Book
+            <a href="index.html" class="back-link">← Back to Login</a>
+        </h1>
+
+        <div id="status">
+            <div style="color: #8b949e; text-align: center; padding-top: 180px;">
+                Ready. Actions will appear here.
+            </div>
+        </div>
+
+        <input type="hidden" id="abId">
+        <div class="form-group">
+            <label>Name</label>
+            <input type="text" id="abName" placeholder="My Friend">
+        </div>
+        <div class="form-group">
+            <label>Address</label>
+            <input type="text" id="abAddress" placeholder="0x...">
+        </div>
+        <div class="form-group">
+            <label>Memo (Optional)</label>
+            <input type="text" id="abMemo" placeholder="Note...">
+        </div>
+        <div class="form-check">
+            <input type="checkbox" id="abFavorite">
+            <label for="abFavorite" style="margin:0;">Favorite</label>
+        </div>
+        <button id="saveAddressBtn">Add Address</button>
+        <button id="cancelEditBtn" style="display:none; background-color: #6e7681;">Cancel</button>
+
+        <table id="addressTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th>Memo</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Rows will be added here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const origin = window.location.origin;
+        let currentAccessToken = localStorage.getItem('access_token');
+
+        if (!currentAccessToken) {
+            alert("Please login first!");
+            window.location.href = "index.html";
+        }
+
+        // --- Logging Functions ---
+
+        // Simple syntax highlighting for JSON
+        function syntaxHighlight(json) {
+            if (typeof json != 'string') {
+                json = JSON.stringify(json, undefined, 2);
+            }
+            json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                var cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        function clearInitialStatus() {
+            const statusDiv = document.getElementById('status');
+            if (statusDiv.innerText.includes("Ready. Actions will appear here.")) {
+                statusDiv.innerHTML = "";
+            }
+        }
+
+        function logRequest(method, url, body) {
+            clearInitialStatus();
+            const statusDiv = document.getElementById('status');
+            const time = new Date().toLocaleTimeString();
+
+            let bodyHtml = "";
+            if (body) {
+                bodyHtml = `<div class="log-content"><pre>${syntaxHighlight(body)}</pre></div>`;
+            }
+
+            const html = `
+                <div class="log-entry">
+                    <div class="log-header">
+                        <div>
+                            <span class="badge method-${method}">${method}</span>
+                            <span class="url-text">${url}</span>
+                        </div>
+                        <span>${time} • REQ</span>
+                    </div>
+                    ${bodyHtml}
+                </div>
+            `;
+            statusDiv.innerHTML += html;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        function logResponse(status, data) {
+            clearInitialStatus();
+            const statusDiv = document.getElementById('status');
+            const time = new Date().toLocaleTimeString();
+            const isSuccess = status >= 200 && status < 300;
+            const statusClass = isSuccess ? 'status-success' : 'status-error';
+
+            let bodyHtml = "";
+            if (data) {
+                bodyHtml = `<div class="log-content"><pre>${syntaxHighlight(data)}</pre></div>`;
+            }
+
+            const html = `
+                <div class="log-entry">
+                    <div class="log-header">
+                        <div>
+                            <span class="badge ${statusClass}">${status}</span>
+                            <span>Response</span>
+                        </div>
+                        <span>${time} • RES</span>
+                    </div>
+                    ${bodyHtml}
+                </div>
+            `;
+            statusDiv.innerHTML += html;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+
+        // --- API Wrapper ---
+
+        async function apiCall(endpoint, method = 'GET', body = null) {
+            const url = `${origin}${endpoint}`;
+            logRequest(method, endpoint, body);
+
+            const options = {
+                method: method,
+                headers: {
+                    'Authorization': `Bearer ${currentAccessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (body) {
+                options.body = JSON.stringify(body);
+            }
+
+            try {
+                const res = await fetch(url, options);
+                let data = null;
+
+                // Try to parse JSON if content-type is json
+                const contentType = res.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") !== -1) {
+                    data = await res.json();
+                }
+
+                logResponse(res.status, data);
+
+                if (res.status === 401 || res.status === 403) {
+                    alert("Session expired. Please login again.");
+                    window.location.href = "index.html";
+                    return { ok: false, status: res.status };
+                }
+
+                return { ok: res.ok, data: data, status: res.status };
+            } catch (e) {
+                logResponse("ERR", { message: e.message });
+                return { ok: false, error: e };
+            }
+        }
+
+        // --- Application Logic ---
+
+        async function loadAddressBook() {
+            const res = await apiCall('/api/address-book');
+            if (res.ok && res.data) {
+                renderAddressTable(res.data);
+            }
+        }
+
+        function renderAddressTable(list) {
+            const tbody = document.querySelector('#addressTable tbody');
+            tbody.innerHTML = '';
+            list.forEach(item => {
+                const tr = document.createElement('tr');
+                const favIcon = item.isFavorite ? '<span class="fav-icon">★</span>' : '';
+                const favBtnText = item.isFavorite ? 'Unfav' : 'Fav';
+
+                tr.innerHTML = `
+                    <td>${item.id}</td>
+                    <td>${favIcon}${item.name}</td>
+                    <td>${item.address}</td>
+                    <td>${item.memo || ''}</td>
+                    <td>
+                        <button class="action-btn fav-btn" onclick="toggleFavorite(${item.id})">${favBtnText}</button>
+                        <button class="action-btn edit-btn" onclick="editAddress(${item.id}, '${item.name}', '${item.address}', '${item.memo || ''}', ${item.isFavorite})">Edit</button>
+                        <button class="action-btn" onclick="deleteAddress(${item.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        document.getElementById('saveAddressBtn').addEventListener('click', async () => {
+            const id = document.getElementById('abId').value;
+            const name = document.getElementById('abName').value;
+            const address = document.getElementById('abAddress').value;
+            const memo = document.getElementById('abMemo').value;
+            const isFavorite = document.getElementById('abFavorite').checked;
+
+            if (!name || !address) {
+                alert("Name and Address are required");
+                return;
+            }
+
+            let endpoint = '/api/address-book';
+            let method = 'POST';
+
+            if (id) {
+                endpoint += `/${id}`;
+                method = 'PUT';
+            }
+
+            const body = { name, address, memo, isFavorite };
+            const res = await apiCall(endpoint, method, body);
+
+            if (res.ok) {
+                resetForm();
+                loadAddressBook();
+            } else {
+                if (res.data && res.data.error) {
+                    alert("Failed: " + res.data.error);
+                } else {
+                    alert("Failed to save address");
+                }
+            }
+        });
+
+        window.editAddress = function(id, name, address, memo, isFavorite) {
+            document.getElementById('abId').value = id;
+            document.getElementById('abName').value = name;
+            document.getElementById('abAddress').value = address;
+            document.getElementById('abMemo').value = memo;
+            document.getElementById('abFavorite').checked = isFavorite;
+
+            document.getElementById('saveAddressBtn').innerText = "Update Address";
+            document.getElementById('cancelEditBtn').style.display = 'inline-block';
+        };
+
+        document.getElementById('cancelEditBtn').addEventListener('click', () => {
+            resetForm();
+        });
+
+        function resetForm() {
+            document.getElementById('abId').value = '';
+            document.getElementById('abName').value = '';
+            document.getElementById('abAddress').value = '';
+            document.getElementById('abMemo').value = '';
+            document.getElementById('abFavorite').checked = false;
+            document.getElementById('saveAddressBtn').innerText = "Add Address";
+            document.getElementById('cancelEditBtn').style.display = 'none';
+        }
+
+        window.toggleFavorite = async function(id) {
+            const res = await apiCall(`/api/address-book/${id}/favorite`, 'PATCH');
+            if (res.ok) {
+                loadAddressBook();
+            }
+        };
+
+        window.deleteAddress = async function(id) {
+            if (!confirm("Are you sure?")) return;
+            const res = await apiCall(`/api/address-book/${id}`, 'DELETE');
+            if (res.ok) {
+                loadAddressBook();
+            }
+        };
+
+        // Initial Load
+        loadAddressBook();
+    </script>
+</body>
+</html>

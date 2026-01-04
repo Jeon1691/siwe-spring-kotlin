@@ -3,6 +3,8 @@ package com.example.web3wallet.auth.controller
 import com.example.web3wallet.auth.dto.NonceResponse
 import com.example.web3wallet.auth.dto.SiweVerifyRequest
 import com.example.web3wallet.auth.dto.TokenResponse
+import com.example.web3wallet.auth.jwt.JwtFilter
+import com.example.web3wallet.auth.jwt.TokenProvider
 import com.example.web3wallet.auth.service.SiweAuthService
 import com.example.web3wallet.config.SecurityConfig
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -22,7 +24,7 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 
 @WebMvcTest(SiweAuthController::class)
-@Import(SecurityConfig::class)
+@Import(SecurityConfig::class, JwtFilter::class)
 class SiweAuthControllerTest {
 
     @Autowired
@@ -30,6 +32,9 @@ class SiweAuthControllerTest {
 
     @MockitoBean
     private lateinit var siweAuthService: SiweAuthService
+
+    @MockitoBean
+    private lateinit var tokenProvider: TokenProvider
 
     @Autowired
     private lateinit var objectMapper: ObjectMapper
