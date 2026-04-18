@@ -32,7 +32,7 @@ dependencies {
     }
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okio:okio:3.9.0")
-    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.84")
     
     // Force upgrade commons-lang3 to fix CVE-2025-48924 if possible, though 3.17.0 is quite new.
     // Checking if a newer version exists or just explicitly stating it to override transitive deps.
